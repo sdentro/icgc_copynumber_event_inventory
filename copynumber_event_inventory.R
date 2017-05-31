@@ -6,7 +6,7 @@ consensus_file = args[3]
 outdir = args[4]
 wgd_file = args[5]
 
-CENTROMERE_FILE = "~/repo/icgc_paper_figures/ucsc_centromere_mid_hg19.txt"
+CENTROMERE_FILE = "~/repo/icgc_copynumber_event_inventory/ucsc_centromere_mid_hg19.txt"
 
 library(readr)
 
@@ -202,12 +202,12 @@ test_merge = function() {
   # set this to 2 for not WGD and 4 to WGD samples
   ploidy = 2
   is_male = TRUE
-  # bb_subclones_file = "battenberg/0040b1b6-b07a-4b6e-90ef-133523eaf412_subclones.txt"
-  consensus_file = "battenberg/0040b1b6-b07a-4b6e-90ef-133523eaf412.consensus.20170119.somatic.cna.annotated.txt"
+  # This is a profile from the consensus release
+  consensus_file = "0040b1b6-b07a-4b6e-90ef-133523eaf412.consensus.20170119.somatic.cna.annotated.txt"
   samplename = "0040b1b6-b07a-4b6e-90ef-133523eaf412"
   
   # get centromere mid: grep acen cytoBand.txt | awk ' NR % 2 == 0' | sed 's/chr//' | cut -f 1-2 > ucsc_centromere_mid_hg19.txt
-  centromere_positions = read.table("~/repo/icgc_paper_figures/ucsc_centromere_mid_hg19.txt", header=F, stringsAsFactors=F)
+  centromere_positions = read.table("~/repo/icgc_copynumber_event_inventory/ucsc_centromere_mid_hg19.txt", header=F, stringsAsFactors=F)
   colnames(centromere_positions) = c("chromosome", "position")
   
   levels_remove = c("g", "h")
