@@ -8,12 +8,7 @@ wgd_file = args[5]
 
 CENTROMERE_FILE = "~/repo/icgc_paper_figures/ucsc_centromere_mid_hg19.txt"
 
-# bb_subclones_file = "battenberg/0040b1b6-b07a-4b6e-90ef-133523eaf412_subclones.txt"
-# samplename = "0040b1b6-b07a-4b6e-90ef-133523eaf412"
-# summary_table = "~/Documents/Projects/icgc/copynumber_collated_plot/summary_table_combined_annotations.txt"
-# consensus_file = "battenberg/0040b1b6-b07a-4b6e-90ef-133523eaf412.consensus.20170119.somatic.cna.annotated.txt"
-# outdir = ""
-# wgd_file = "~/Documents/Projects/icgc/consensus_subclonal_copynumber/final_run_testing/final_purity_ploidy_patch/combined_consensus_purities_w_sd_allAnno_finalSlimmed_withWGDuncertainty.txt"
+library(readr)
 
 summary_table = readr::read_tsv(summary_table)
 wgd_anno = readr::read_tsv(wgd_file)
