@@ -1,31 +1,29 @@
+#' 
+#' This script contains code to count the number of events in a copy number profile from the ICGC
+#' PCAWG consensus. It contains two approaches: A simple merging approach that considers all 
+#' segments and a more complex complete approach that removes calls made by a single copy number caller.
+#' 
+#' 2017-05-30 - sd11 [at] sanger.ac.uk - PCAWG11
+#' 
+#' 
+
 args = commandArgs(T)
 
-samplename = args[1]
-summary_table = args[2]
-consensus_file = args[3]
-outdir = args[4]
-wgd_file = args[5]
+samplename = args[1] # PCAWG tumour aliquot id of the sample
+summary_table = args[2] # PCAWG11 summary table, contains the sex of the donor
+consensus_file = args[3] # PCAWG11 copy number consensus file
+outdir = args[4] # Directory to write the output, is assumed to exist
+wgd_file = args[5] # PCAWG11 copy number consensus release purity/ploidy table that contains whole genome duplication status
 
+# How to obtain this file: download from http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/
+# get centromere mid: grep acen cytoBand.txt | awk ' NR % 2 == 0' | sed 's/chr//' | cut -f 1-2 > ucsc_centromere_mid_hg19.txt
 CENTROMERE_FILE = "~/repo/icgc_copynumber_event_inventory/ucsc_centromere_mid_hg19.txt"
 
 library(readr)
 
-summary_table = readr::read_tsv(summary_table)
-wgd_anno = readr::read_tsv(wgd_file)
-
-# set this to 2 for not WGD and 4 to WGD samples
-is_male = summary_table$inferred_sex[summary_table$samplename==samplename]=="male"
-is_wgd = wgd_anno$wgd_status[wgd_anno$samplename==samplename]=="wgd"
-
-if (is_wgd) {
-  ploidy = 4
-} else {
-  ploidy = 2
-}
-
-# get centromere mid: grep acen cytoBand.txt | awk ' NR % 2 == 0' | sed 's/chr//' | cut -f 1-2 > ucsc_centromere_mid_hg19.txt
-centromere_positions = read.table(CENTROMERE_FILE, header=F, stringsAsFactors=F)
-colnames(centromere_positions) = c("chromosome", "position")
+########################################################################################################################
+# Complete approach code
+########################################################################################################################
 
 merge_complete = function(cndata, levels_remove, allowed_gap, centromere_positions) {
   # Set a flag to denote whether a segment is a composite
@@ -54,8 +52,11 @@ merge_complete = function(cndata, levels_remove, allowed_gap, centromere_positio
       cndata_second = NULL
     }
 
+    # Merge first chromosome arm
     res_first = merge_complete_inner(cndata_first, levels_remove, allowed_gap)
     cndata_first_merged = res_first$cndata
+    
+    # Merge second chromosome arm
     res_second = merge_complete_inner(cndata_second, levels_remove, allowed_gap)
     cndata_second_merged = res_second$cndata
 
@@ -260,6 +261,9 @@ test_merge = function() {
 }
 
 
+########################################################################################################################
+# Simple approach code
+########################################################################################################################
 
 merge_simple = function(cndata) {
   new_cndata = data.frame()
@@ -278,6 +282,9 @@ merge_simple = function(cndata) {
   return(new_cndata)
 }
 
+########################################################################################################################
+# Classification functions
+########################################################################################################################
 
 classify_segments = function(cndata, is_male, ploidy, samplename) {
   
@@ -291,15 +298,12 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
     x_exp = ploidy; y_exp = 0; exp_sex_chrom_lvl = 0;
   }
   
+  
   # If there is no column with a tumour name, add it in temporarily
   if (! "Tumour_Name" %in% colnames(cndata)) {
     cndata = data.frame(Tumour_Name=samplename, cndata)
   }
   
-  # allsegs = data.frame(cndata[, c("Tumour_Name", "chromosome", "start", 
-  #                                 "end", "major_cn", "minor_cn", 
-  #                                 "frac1_A", "nMaj2_A", "nMin2_A", 
-  #                                 "frac2_A", "SDfrac_A")], tumour_ploidy=ploidy)
   allsegs = data.frame(cndata[, c("Tumour_Name", "chromosome", "start", 
                                   "end", "major_cn", "minor_cn")], tumour_ploidy=ploidy)
   
@@ -310,7 +314,6 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
   CNA <- NULL
   for (i in 1:dim(allsegs)[1]) {
 	  print(i)
-	  save(file="test.RData", i, allsegs)
     select_columns = c(1:7)
     
     # Save some states
@@ -339,16 +342,9 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
       ####################################################
       
       # Gains - male
-      # TODO is it strictly required here to check for the other allele to be 0, can this be done upstream?
       if ((allsegs$major_cn[i] > exp_sex_chrom_lvl) | (allsegs$minor_cn[i] > exp_sex_chrom_lvl)) {
-        # if ((((allsegs$major_cn[i] > exp_sex_chrom_lvl*3) & (allsegs$minor_cn[i] == 0)) | ((allsegs$major_cn[i] == 0) & (allsegs$minor_cn[i] > exp_sex_chrom_lvl*3)))) {
-        #   allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
-        #   CNA <- c(CNA, "cAmp")
-        # }
-        # else {
-          allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
-          CNA <- c(CNA, "cGain")
-        # }
+        allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
+        CNA <- c(CNA, "cGain")
       }
       
       
@@ -372,14 +368,8 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
       
       # Gains
       if ((allsegs$major_cn[i] > ploidy/2) | (allsegs$minor_cn[i] > ploidy/2)) {
-        # if ((allsegs$major_cn[i] > ploidy*2) | (allsegs$minor_cn[i] > ploidy*2)) {
-        #   allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
-        #   CNA <- c(CNA, "cAmp")
-        # }
-        # else {
-          allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
-          CNA <- c(CNA, "cGain")
-        # }
+        allsegsa <- rbind(allsegsa, allsegs[i,select_columns])
+        CNA <- c(CNA, "cGain")
       }
       
       
@@ -398,10 +388,8 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
     }
   }
     
-    
   allsegsa <- cbind(allsegsa, CNA)
   allsegsa$CNA = factor(allsegsa$CNA, levels=c("cGain", "cLoss", "cHD", "NoCNA", "cLOH", "WGD"))
-  # allsegsa$frac1_A[allsegsa$CNA == "cGain"|allsegsa$CNA == "cAmp"|allsegsa$CNA == "cLOH"|allsegsa$CNA == "cHD"|allsegsa$CNA == "cLoss"] = 1
   
   # Switch the columns
   allsegsa = data.frame(allsegsa[,-1], Tumour_Name=samplename)
@@ -409,8 +397,28 @@ classify_segments = function(cndata, is_male, ploidy, samplename) {
   return(allsegsa)
 }
 
+########################################################################################################################
+# Start script
+########################################################################################################################
+
+summary_table = readr::read_tsv(summary_table)
+wgd_anno = readr::read_tsv(wgd_file)
+
+# obtain flags from a PCAWG11 summary table
+is_male = summary_table$inferred_sex[summary_table$samplename==samplename]=="male"
+is_wgd = wgd_anno$wgd_status[wgd_anno$samplename==samplename]=="wgd"
+
+# set this to 2 for not WGD and 4 to WGD samples
+if (is_wgd) {
+  ploidy = 4
+} else {
+  ploidy = 2
+}
+
+centromere_positions = read.table(CENTROMERE_FILE, header=F, stringsAsFactors=F)
+colnames(centromere_positions) = c("chromosome", "position")
+
 # Read in the data
-# cndata = read.table(bb_subclones_file, header=T, stringsAsFactors=F)
 cndata = read.table(consensus_file, header=T, stringsAsFactors=F)
 
 # Remove all segments witout a call
